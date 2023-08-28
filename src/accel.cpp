@@ -18,8 +18,170 @@
 
 #include <nori/accel.h>
 #include <Eigen/Geometry>
+#include <chrono>
 
 NORI_NAMESPACE_BEGIN
+
+void Accel::build()
+{
+    auto start = std::chrono::high_resolution_clock::now();
+
+    std::vector<uint32_t> triangles(m_mesh->getTriangleCount());
+    for (int i = 0; i < m_mesh->getTriangleCount(); i++)
+        triangles[i] = i;
+
+    m_root = buildRecursive(m_bbox, triangles, 0);
+
+    //print statistics
+    printf("Construction time: %ldms \n", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - start).count());
+    printf("Number of interior nodes: %d \n", m_num_nodes);
+    printf("Number of leaf nodes: %d \n", m_num_leaf_nodes);
+    printf("Average number of triangles per leaf node: %f \n", (float)m_num_leaf_node_triangles / (float)m_num_nodes);
+    printf("Recursion depth: %d \n", m_recursion_depth);
+}
+
+
+
+Node* Accel::buildRecursive(BoundingBox3f& bbox, std::vector<uint32_t>& triangles, uint32_t depth)
+{
+    m_num_nodes++;
+    int triangleNum = triangles.size();
+    if (triangleNum == 0)
+    {
+        return nullptr;
+    }
+
+    //leaf node
+    if (triangleNum < 10 || depth > 10)
+    {
+        Node* node = new Node();
+        node->triangleNum = triangleNum;
+        node->triangles = new uint32_t[triangleNum];
+        for (int i = 0; i < triangleNum; i++)
+        {
+            node->triangles[i] = triangles[i];
+        }
+        node->bbox = BoundingBox3f(bbox);
+        m_num_leaf_nodes++;
+        m_num_leaf_node_triangles += triangleNum;
+        return node;
+    }
+
+    //parent node
+    std::vector<std::vector<uint32_t>> childTriangles(8);
+    BoundingBox3f childBboxes[8] = {};
+    getSubBBox(bbox, childBboxes);
+
+    for (int j = 0; j < triangleNum; j++)
+    {
+        uint32_t triangle = triangles[j];
+        for (int i = 0; i < 8; i++)
+        {
+            BoundingBox3f triangleBBox = m_mesh->getBoundingBox(triangle);
+            if (childBboxes[i].overlaps(triangleBBox))
+            {
+                childTriangles[i].emplace_back(triangle);
+            }
+
+        }
+    }
+
+    Node* node = new Node();
+    node->bbox = BoundingBox3f(bbox);
+    node->child = new Node * [8];
+    for (int i = 0; i < 8; i++)
+    {
+        node->child[i] = buildRecursive(childBboxes[i], childTriangles[i], depth + 1);
+        m_recursion_depth = std::max((uint32_t)m_recursion_depth, depth + 1);
+    }
+    return node;
+}
+
+void Accel::getSubBBox(const BoundingBox3f& parent, BoundingBox3f* childBBox)
+{
+    Vector3f extents = parent.getExtents();
+    float x[3] = { parent.min.x(), parent.min.x() + 0.5 * extents.x(), parent.max.x() };
+    float y[3] = { parent.min.y(), parent.min.y() + 0.5 * extents.y(), parent.max.y() };
+    float z[3] = { parent.min.z(), parent.min.z() + 0.5 * extents.z(), parent.max.z() };
+
+    int idx = 0;
+    for (int ix = 0; ix < 2; ++ix)
+    {
+        for (int iy = 0; iy < 2; ++iy)
+        {
+            for (int iz = 0; iz < 2; ++iz)
+            {
+                Point3f minPoint(x[ix], y[iy], z[iz]);
+                Point3f maxPoint(x[ix + 1], y[iy + 1], z[iz + 1]);
+                childBBox[idx++] = BoundingBox3f(minPoint, maxPoint);
+            }
+        }
+    }
+}
+
+
+bool Accel::rayTraversalIntersect(const Node& node, Ray3f& ray, Intersection& its, bool shadowRay, uint32_t& hit_idx) const
+{
+    bool isIntersection = false;
+    if (!node.bbox.rayIntersect(ray))
+        return false;
+    for (uint32_t idx = 0; idx < node.triangleNum; ++idx)
+    {
+        uint32_t triangle = node.triangles[idx];
+        float u, v, t;
+        if (m_mesh->rayIntersect(triangle, ray, u, v, t) && t < ray.maxt)
+        {
+            /* An intersection was found! Can terminate
+               immediately if this is a shadow ray query */
+            if (shadowRay)
+                return true;
+            ray.maxt = its.t = t;
+            its.uv = Point2f(u, v);
+            its.mesh = m_mesh;
+            hit_idx = triangle;
+            isIntersection = true;
+        }
+    }
+    if (node.child)
+    {
+        /*std::vector<std::pair<int, float>> node_for_sort;
+        for (int i = 0; i < 8; i++)
+        {
+            Node* childNode = node.child[i];
+            float distance = 0;
+            if (childNode && childNode->bbox.rayIntersect(ray))
+            {
+                distance = childNode->bbox.distanceTo(ray.o);
+                node_for_sort.push_back(std::make_pair(i, distance));
+            }
+        }
+        sort(node_for_sort.begin(), node_for_sort.end(), cmpChildToRayDistance);
+        for (int i = 0; i < node_for_sort.size(); i++)
+        {
+            Node* childNode = node.child[node_for_sort[i].first];
+            if (childNode)
+            {
+                isIntersection |= rayTraversalIntersect(*childNode, ray, its, shadowRay, hit_idx);
+                if(isIntersection)return true;
+            }
+            //if (shadowRay && isIntersection)
+            //    return true;
+        }*/
+        for (int i = 0; i < 8; i++)
+        {
+            Node* childNode = node.child[i];
+            if (childNode)
+            {
+                isIntersection |= rayTraversalIntersect(*childNode, ray, its, shadowRay, hit_idx);
+                //if (isIntersection)return true;
+            }
+            if (shadowRay && isIntersection)
+                return true;
+        }
+    }
+
+    return isIntersection;
+}
 
 void Accel::addMesh(Mesh *mesh) {
     if (m_mesh)
@@ -28,8 +190,9 @@ void Accel::addMesh(Mesh *mesh) {
     m_bbox = m_mesh->getBoundingBox();
 }
 
-void Accel::build() {
-    /* Nothing to do here for now */
+bool Accel::cmpChildToRayDistance(const std::pair<int, float>& a, const std::pair<int, float>& b)
+{
+    return a.second < b.second;
 }
 
 bool Accel::rayIntersect(const Ray3f &ray_, Intersection &its, bool shadowRay) const {
@@ -38,12 +201,17 @@ bool Accel::rayIntersect(const Ray3f &ray_, Intersection &its, bool shadowRay) c
 
     Ray3f ray(ray_); /// Make a copy of the ray (we will need to update its '.maxt' value)
 
+    foundIntersection = rayTraversalIntersect(*m_root, ray, its, shadowRay, f);
+    if (shadowRay)
+        return foundIntersection;
+
     /* Brute force search through all triangles */
+    /*
     for (uint32_t idx = 0; idx < m_mesh->getTriangleCount(); ++idx) {
         float u, v, t;
         if (m_mesh->rayIntersect(idx, ray, u, v, t)) {
-            /* An intersection was found! Can terminate
-               immediately if this is a shadow ray query */
+            //An intersection was found! Can terminate
+            //  immediately if this is a shadow ray query 
             if (shadowRay)
                 return true;
             ray.maxt = its.t = t;
@@ -52,7 +220,7 @@ bool Accel::rayIntersect(const Ray3f &ray_, Intersection &its, bool shadowRay) c
             f = idx;
             foundIntersection = true;
         }
-    }
+    }*/
 
     if (foundIntersection) {
         /* At this point, we now know that there is an intersection,

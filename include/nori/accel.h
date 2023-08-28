@@ -28,6 +28,15 @@ NORI_NAMESPACE_BEGIN
  * The current implementation falls back to a brute force loop
  * through the geometry.
  */
+
+struct Node
+    {
+        BoundingBox3f bbox;
+        uint32_t* triangles = nullptr;
+        uint32_t triangleNum = 0;
+
+        Node** child = nullptr;
+    };
 class Accel {
 public:
     /**
@@ -40,6 +49,10 @@ public:
 
     /// Build the acceleration data structure (currently a no-op)
     void build();
+
+    Node* buildRecursive(BoundingBox3f& bbox, std::vector<uint32_t>& triangles, uint32_t recursiveDepth);
+
+    void getSubBBox(const BoundingBox3f& parent, BoundingBox3f* childBBox);
 
     /// Return an axis-aligned box that bounds the scene
     const BoundingBox3f &getBoundingBox() const { return m_bbox; }
@@ -65,9 +78,21 @@ public:
      */
     bool rayIntersect(const Ray3f &ray, Intersection &its, bool shadowRay) const;
 
+    bool rayTraversalIntersect(const Node& node, Ray3f& ray, Intersection& its, bool shadowRay, uint32_t& hit_idx) const;
+
+    static bool cmpChildToRayDistance(const std::pair<int, float>& a, const std::pair<int, float>& b);
+
 private:
     Mesh         *m_mesh = nullptr; ///< Mesh (only a single one for now)
     BoundingBox3f m_bbox;           ///< Bounding box of the entire scene
+
+    Node* m_root = nullptr;
+
+    //for statistics
+    int m_recursion_depth = 0;
+    int m_num_nodes = 0;
+    int m_num_leaf_nodes = 0;
+    int m_num_leaf_node_triangles = 0;
 };
 
 NORI_NAMESPACE_END
