@@ -22,21 +22,25 @@
 
 NORI_NAMESPACE_BEGIN
 
+const int MAX_MESH_NUMS = 10;
+struct Node
+{
+    BoundingBox3f bbox;
+
+    uint32_t triangleNum = 0;
+
+    uint32_t* meshIndices = nullptr;
+    uint32_t* triangleIndices = nullptr;
+
+    Node** child = nullptr;
+};
+
 /**
  * \brief Acceleration data structure for ray intersection queries
  *
  * The current implementation falls back to a brute force loop
  * through the geometry.
  */
-
-struct Node
-    {
-        BoundingBox3f bbox;
-        uint32_t* triangles = nullptr;
-        uint32_t triangleNum = 0;
-
-        Node** child = nullptr;
-    };
 class Accel {
 public:
     /**
@@ -50,7 +54,7 @@ public:
     /// Build the acceleration data structure (currently a no-op)
     void build();
 
-    Node* buildRecursive(BoundingBox3f& bbox, std::vector<uint32_t>& triangles, uint32_t recursiveDepth);
+    Node* buildRecursive(BoundingBox3f& bbox, std::vector<uint32_t>& triangleIndices, std::vector<uint32_t>& meshIndices, uint32_t depth);
 
     void getSubBBox(const BoundingBox3f& parent, BoundingBox3f* childBBox);
 
@@ -83,7 +87,11 @@ public:
     static bool cmpChildToRayDistance(const std::pair<int, float>& a, const std::pair<int, float>& b);
 
 private:
-    Mesh         *m_mesh = nullptr; ///< Mesh (only a single one for now)
+    //Mesh         *m_mesh = nullptr; ///< Mesh (only a single one for now)
+
+    Mesh* m_meshes[MAX_MESH_NUMS];
+    int           m_mesh_nums = 0;
+
     BoundingBox3f m_bbox;           ///< Bounding box of the entire scene
 
     Node* m_root = nullptr;
