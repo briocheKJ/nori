@@ -43,7 +43,66 @@ public:
     }
 
     Color3f sample(BSDFQueryRecord &bRec, const Point2f &sample) const {
-        throw NoriException("Unimplemented!");
+        //cout << "!!!" << endl;
+        //throw NoriException("Unimplemented!");
+
+        //calculating the fresnel reflection coefficient
+        //cos of incident direction and normal
+        //m_extIOR is the refractive index of the side containing the surface normal
+        //m_intIOR is the refractive index of the interior
+        float cosThetai = Frame::cosTheta(bRec.wi);
+        float fresnelterm = fresnel(cosThetai, m_extIOR, m_intIOR);
+
+        //as fresnel coefficient gives amount of reflected and refracted light, it is used to check whether reflection or refraction is happening
+        //if random sample is less than the fresnel term, then reflection will happen otherwise refraction
+        if (sample.y() < fresnelterm)
+        {
+            //reflection; in local coordinate system
+            bRec.wo = Vector3f(-bRec.wi.x(), -bRec.wi.y(), bRec.wi.z());
+            bRec.measure = EDiscrete;
+
+            /* Relative index of refraction: no change */
+            bRec.eta = 1.0f;
+            return Color3f(1.0f);
+        }
+        else
+        {
+            //refraction
+            float eta_incidence = m_extIOR;
+            float eta_outgoing = m_intIOR;
+            Vector3f n = Vector3f(0.f, 0.f, 1.f);
+            //checking sign of cos theta - outer surface pointing; within same hemisphere; no signs change
+            //inner surface pointing; inside surface pointing; opposite side of the hemisphere; signs change
+            //happens because cos theta value is positive in hemisphere and negative opposite of hemisphere, but we want eta_incidence to always be positive
+            //need to check whether it is inside or outside refraction
+            if (Frame::cosTheta(bRec.wi) < 0)
+            {
+                eta_incidence = m_intIOR;
+                eta_outgoing = m_extIOR;
+                n = -n;
+            }
+            //final eta value now; eta_incidence/eta_outgoing
+            bRec.eta = eta_incidence / eta_outgoing;
+
+            // WHY WOULD THIS BRUTE FORCE NOT WORK?
+            // //finding costhetat using snell's law
+            // //we already know costhetai = costheta(wi)
+            // float sinsqthetai = std::max(0.0f, 1.0f - (cosThetai * cosThetai));
+            // //snells law
+            // float sinsqthetat = bRec.eta * bRec.eta * sinsqthetai;
+            // //handle total internal reflection
+            // if(sinsqthetat >= 1)
+            //     return Color3f(1.0);
+            // float cosThetat = std::sqrt(1 - sinsqthetat);
+            // bRec.wo = bRec.eta * -bRec.wi + (bRec.eta * cosThetai + cosThetat) * n;
+
+            //calculating direction of w_t using snells law
+            auto wt_part1 = -eta_incidence / eta_outgoing * (bRec.wi - bRec.wi.dot(n) * n);
+            auto wt_part2 = -std::sqrt(1 - (eta_incidence / eta_outgoing) * (eta_incidence / eta_outgoing) * (1 - std::pow(bRec.wi.dot(n), 2))) * n;
+            bRec.wo = wt_part1 + wt_part2;
+
+            return Color3f(1.0f / (bRec.eta * bRec.eta));
+        }
     }
 
     std::string toString() const {

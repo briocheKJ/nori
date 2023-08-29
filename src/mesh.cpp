@@ -39,6 +39,12 @@ void Mesh::activate() {
             NoriObjectFactory::createInstance("diffuse", PropertyList()));
     }
 
+    mesharea = 0;
+    for (uint32_t i = 0; i < getTriangleCount(); i++)
+    {
+        mesharea = mesharea + surfaceArea(i);
+    }
+
     m_dpdf.clear();
     for (uint32_t i = 0; i < getTriangleCount(); i++)
     {
@@ -92,6 +98,11 @@ bool Mesh::rayIntersect(uint32_t index, const Ray3f &ray, float &u, float &v, fl
     t = edge2.dot(qvec) * inv_det;
 
     return t >= ray.mint && t <= ray.maxt;
+}
+
+float Mesh::getTotalArea()
+{
+    return 1.0f / m_dpdf.getNormalization();
 }
 
 BoundingBox3f Mesh::getBoundingBox(uint32_t index) const {

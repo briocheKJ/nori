@@ -70,6 +70,8 @@ public:
 
     static Point2f squareToConcentricDisk(const Point2f& sample);
 
+    static Vector3f squareToUniformTriangle(const Point2f& sample);
+
     static float tent(float x);
     static float tentPdf(float t);
 };

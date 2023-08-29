@@ -1,9 +1,9 @@
 <scene>
     <integrator type="whitted"/>
 
-    <sampler type="independent">
+    <sampler type="grid">
         <!-- You might want to reduce this number during development -->
-        <integer name="sampleCount" value="4096"/>
+        <integer name="sampleCount" value="16"/>
         <!-- <integer name="sampleCount" value="16"/> -->
     </sampler>
 

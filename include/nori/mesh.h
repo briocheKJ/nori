@@ -135,6 +135,12 @@ public:
 
     SampleResult sample(Sampler* sampler);
 
+    float getTotalArea();
+
+    float getArea() const { return mesharea; }
+
+    DiscretePDF getTrianglePDF() { return m_dpdf; }
+
     /// Return a pointer to the vertex positions
     const MatrixXf &getVertexPositions() const { return m_V; }
 
@@ -189,6 +195,7 @@ protected:
     BoundingBox3f m_bbox;                ///< Bounding box of the mesh
 
     DiscretePDF m_dpdf;
+    float mesharea = 0;
 };
 
 NORI_NAMESPACE_END
