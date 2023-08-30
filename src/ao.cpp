@@ -2,6 +2,7 @@
 #include <nori/scene.h>
 #include <nori/warp.h>
 //#include <nori/sampler.h>
+#include <nori/mesh.h>
 
 
 NORI_NAMESPACE_BEGIN

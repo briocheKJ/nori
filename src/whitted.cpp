@@ -19,6 +19,14 @@ public:
         if (!scene->rayIntersect(ray, its))
             return Color3f(0.0f);
 
+        Color3f Le(0.0f);
+        if (its.mesh->isEmitter())
+        {
+            EmitterQueryRecord eRec(ray.o, its.p, its.shFrame.n);
+            Le = its.mesh->getEmitter()->eval(eRec);
+
+        }
+
         //Intersection point on scene where we want to calculate radiance
         Point3f x = its.p;
         const Mesh* intersectedmesh = its.mesh; //mesh of the scene
@@ -90,7 +98,7 @@ public:
                 float b = (brdfofmesh.b() * costheta * cosalpha * emitterradiance.b() * v) / (pdf * dir.norm() * dir.norm());
                 //cout << (pdf * dir.norm() * dir.norm()) <<" " << r << " " << g << " " << b << endl;
                 //exit(0);
-                return Color3f(r, g, b);
+                return Color3f(r, g, b) + Le;
             }
         }
         //if the material bsdf is dielectric or not diffuse
@@ -112,7 +120,7 @@ public:
             }
             else
             {
-                return Color3f(0.0f);
+                return Color3f(0.0f) + Le;
             }
         }
     }
