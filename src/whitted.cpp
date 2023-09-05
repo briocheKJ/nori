@@ -14,10 +14,10 @@ public:
 
     Color3f Li(const Scene* scene, Sampler* sampler, const Ray3f& ray) const {
 
-        Color3f rad;
+        
         Intersection its;
         if (!scene->rayIntersect(ray, its))
-            return Color3f(0.0f);
+            return Color3f(1.0f);
 
         Color3f Le(0.0f);
         if (its.mesh->isEmitter())
@@ -32,7 +32,7 @@ public:
         const Mesh* intersectedmesh = its.mesh; //mesh of the scene
         const BSDF* bsdf = intersectedmesh->getBSDF(); //bsdf of the scene
 
-        //checking if its a diffuse material
+        //if it is a diffuse material
         if (bsdf->isDiffuse())
         {
             //get all the meshes of the emitter in a vector
@@ -52,11 +52,9 @@ public:
             //Make a structure of emitter having origin at x  
             EmitterQueryRecord EQR(x);
 
-            //sample a point on light source
+            //根据光源采样
             Point3f y = emittermesh->sample(emittertoemit, EQR, sampler);
-            //get the radiance
             Color3f emitterradiance = emittermesh->eval(EQR);
-            //get the pdf
             float pdf = emittermesh->pdf(emittertoemit,EQR);
 
             //checking visibility of y and x
@@ -101,20 +99,20 @@ public:
                 return Color3f(r, g, b) + Le;
             }
         }
-        //if the material bsdf is dielectric or not diffuse
+        //if the material bsdf is not diffuse
         else
         {
-            //getting the origin point of ray from camera from w_o
             Vector3f w_o = its.toLocal((ray.o - x).normalized());
             BSDFQueryRecord bsdfquery(w_o);
             //get bsdf for scene at point x
-            //return back the bsdf and also the w_t of the transmitted ray into the medium
+
             Color3f brdfofmesh = bsdf->sample(bsdfquery, sampler->next2D());
 
             float addsampler = sampler->next1D();
             Ray3f newray = Ray3f(x, its.toWorld(bsdfquery.wo));
             if (addsampler < 0.95f)
             {
+                Color3f rad;
                 rad = (1.0f / 0.95f) * (brdfofmesh)*Li(scene, sampler, newray);
                 return rad;
             }
@@ -125,7 +123,6 @@ public:
         }
     }
 
-    /// Return a human-readable description for debugging purposes
     std::string toString() const
     {
         return tfm::format(

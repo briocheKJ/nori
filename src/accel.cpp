@@ -68,7 +68,7 @@ Node* Accel::buildRecursive(BoundingBox3f& bbox, std::vector<uint32_t>& triangle
     }
 
     //leaf node
-    if (triangleNum < 10 || depth > 10)
+    if (triangleNum < 10 || depth > 15)
     {
         Node* node = new Node();
         node->triangleNum = triangleNum;
